@@ -33,14 +33,15 @@
 #define MAX(x,y) ((x) > (y) ? (x) : (y))
 #define CRLF "\r\n"
 #define SERVER_NAME "Cerver"
+// According to Posix style convention, -1 failed, 0 ok
+#define FAILED -1
+#define OK 0
 
-char *mime_table[][2] = {
-    {"html", "text/html"},
-    {"css", "text/css"},
-    {"js", "application/javascript"},
-    {"png", "image/png"},
-};
-
+typedef struct Location {
+    char *hash;
+    char *path;
+    char *query;
+} location_t;
 struct Header {
     char *name;
     char *value;
@@ -53,7 +54,7 @@ struct Request {
     // longest methods are `options` and `connect`, 8 bytes is ok
     char method[8];
     header_t *header;
-    char *url;
+    location_t *location;
 };
 typedef struct Request req_t;
 
@@ -67,6 +68,7 @@ struct Response {
     int status;
 };
 typedef struct Response res_t;
+
 
 typedef struct {
     int fd;             // Binded file descriptor
@@ -102,9 +104,22 @@ void res_init(res_t *);
 char *stringify_time(time_t);
 char *get_extension(const char *);
 char *get_mime(const char *);
+int parse_location(char *, location_t*);
+int check_method(char *);
 
 // Public dir
 char *public;
+char *mime_table[][2] = {
+    {"html", "text/html"},
+    {"css", "text/css"},
+    {"js", "application/javascript"},
+    {"png", "image/png"},
+};
+// Supported methods
+char *methods[] = {
+    "GET",
+    "HEAD",
+};
 
 int main(int argc, char **argv, char **envptr) {
     short port = 0;
@@ -245,21 +260,28 @@ int read_startline(rio_t *rp, req_t *req, res_t *res) {
     char url[URI_MAX];
     if (rio_readline(rp, line, HDR_MAX) < 0) {
         res->status = 400;
-        return -1;
+        return FAILED;
     }
     trimright_line(line);
     if ((sscanf(line, "%7s %s %*s", req->method, url)) != 2) {
         res->status = 400;
-        return -1;
+        return FAILED;
     }
-    if (strncasecmp(req->method, "GET", 3) != 0) {
+    if (strlen(url) == 0 || url[0] != '/') {
+        // Only support abs path, cannot be empty, MUST start with '/'
+        // https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html#sec5.1.2
+        res->status = 400;
+        return FAILED;
+    }
+    req->location = (location_t *)malloc(sizeof(location_t));
+    parse_location(url, req->location);
+
+    if (check_method(req->method) != OK) {
         res->status = 405;
-        return -1;
+        return FAILED;
     }
-    size_t urllen = strlen(url);
-    req->url = (char *)malloc(urllen + 1);
-    strncpy(req->url, url, urllen + 1);
-    return 0;
+
+    return OK;
 }
 
 int read_request_headers(rio_t *rp, req_t *req, res_t *res) {
@@ -291,7 +313,7 @@ int read_request_headers(rio_t *rp, req_t *req, res_t *res) {
         }
         prev_header = temp_header;
     }
-    return 0;
+    return OK;
 }
 
 int trimright_line(char *line) {
@@ -313,7 +335,7 @@ int handle_request(req_t *req, res_t *res) {
     // serve static file
     char filename[URI_MAX];
     strcpy(filename, public);
-    strcat(filename, req->url);
+    strcat(filename, req->location->path);
     struct stat st;
     char *pos, *mime;
     if (stat(filename, &st) == 0) {
@@ -329,22 +351,26 @@ int handle_request(req_t *req, res_t *res) {
     }
     if (stat(filename, &st) < 0) {
         res->status = 404;
-        return -1;
+        return FAILED;
+    }
+
+    res->status = 200;
+    append_header(res, new_header("Last-Modified", stringify_time(st.st_mtime)));
+    mime = get_mime(get_extension(filename));
+    if (mime) append_header(res, new_header("Content-Type", mime));
+    if (strncasecmp(req->method, "HEAD", 4) == 0) {
+        res->body = NULL;
+        res->length = 0;
+        return OK;
     }
     int fd = open(filename, O_RDONLY, 0);
     char *bodybuf = (char *)mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     res->body = (char *)malloc(st.st_size);
     memcpy(res->body, bodybuf, st.st_size);
     res->length = st.st_size;
-    res->status = 200;
-    append_header(res, new_header("Last-Modified", stringify_time(st.st_mtime)));
-    mime = get_mime(get_extension(filename));
-    if (mime) {
-        append_header(res, new_header("Content-Type", mime));
-    }
     close(fd);
     munmap(bodybuf, st.st_size);
-    return 0;
+    return OK;
 }
 
 void web_handle(int connfd) {
@@ -354,9 +380,9 @@ void web_handle(int connfd) {
     rio_init(&rio, connfd);
     req_init(&req);
     res_init(&res);
-    if (read_startline(&rio, &req, &res) == 0) {
-        if (read_request_headers(&rio, &req, &res) == 0) {
-            if (handle_request(&req, &res) == 0) {
+    if (read_startline(&rio, &req, &res) == OK) {
+        if (read_request_headers(&rio, &req, &res) == OK) {
+            if (handle_request(&req, &res) == OK) {
                 httpsend(connfd, &res);
             } else {
                 httpsend_error(connfd, &res);
@@ -396,7 +422,6 @@ void append_header(res_t *res, header_t *header) {
     } else {
         res->header = res->last = header;
     }
-
 }
 
 void httpsend(int connfd, res_t *res) {
@@ -486,7 +511,12 @@ void free_headers(header_t *header) {
 }
 
 void free_request(req_t *req) {
-    if (req->url) free(req->url);
+    if (req->location) {
+        if (req->location->path) free(req->location->path);
+        if (req->location->hash) free(req->location->hash);
+        if (req->location->query) free(req->location->query);
+        free(req->location);
+    }
     if (req->header) free_headers(req->header);
 }
 
@@ -497,7 +527,7 @@ void free_response(res_t *res) {
 
 void req_init(req_t *req) {
     req->header = NULL;
-    req->url = NULL;
+    req->location = NULL;
 }
 
 void res_init(res_t *res) {
@@ -528,4 +558,45 @@ char *get_mime(const char *ext) {
         }
     }
     return NULL;
+}
+
+
+int parse_location(char *url, location_t* loc) {
+    char *queryptr, *hashptr;
+    size_t len = 0;
+    loc->path = NULL;
+    loc->hash = NULL;
+    loc->query = NULL;
+    if ((queryptr = index(url, '?')) != NULL) {
+        *queryptr = 0;
+        queryptr++;
+    }
+    if ((hashptr = index(url, '#')) != NULL) {
+        *hashptr = 0;
+        hashptr++;
+    }
+    len = strlen(url) + 1;
+    loc->path = (char *)malloc(len);
+    strncpy(loc->path, url, len);
+
+    if (queryptr && (len = strlen(queryptr)) > 0) {
+        loc->query = (char *)malloc(len);
+        strncpy(loc->query, queryptr, len);
+    }
+
+    if (hashptr && (len = strlen(hashptr)) > 0) {
+        loc->hash = (char *)malloc(len);
+        strncpy(loc->hash, hashptr, len);
+    }
+    return OK;
+}
+
+int check_method(char *method) {
+    size_t i, len = sizeof(methods) / sizeof(methods[0]);
+    for(i = 0; i < len; i++) {
+        if (strncasecmp(methods[i], method, strlen(method)) == 0) {
+            return OK;
+        }
+    }
+    return FAILED;
 }
