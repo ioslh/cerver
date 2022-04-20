@@ -36,7 +36,9 @@
 
 char *mime_table[][2] = {
     {"html", "text/html"},
+    {"css", "text/css"},
     {"js", "application/javascript"},
+    {"png", "image/png"},
 };
 
 struct Header {
@@ -97,7 +99,7 @@ void httpsend_error(int connfd, res_t *res);
 void httpsend(int connfd, res_t *res);
 void req_init(req_t *);
 void res_init(res_t *);
-char *get_now(void);
+char *stringify_time(time_t);
 char *get_extension(const char *);
 char *get_mime(const char *);
 
@@ -332,9 +334,10 @@ int handle_request(req_t *req, res_t *res) {
     int fd = open(filename, O_RDONLY, 0);
     char *bodybuf = (char *)mmap(NULL, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     res->body = (char *)malloc(st.st_size);
-    strncpy(res->body, bodybuf, st.st_size);
+    memcpy(res->body, bodybuf, st.st_size);
     res->length = st.st_size;
     res->status = 200;
+    append_header(res, new_header("Last-Modified", stringify_time(st.st_mtime)));
     mime = get_mime(get_extension(filename));
     if (mime) {
         append_header(res, new_header("Content-Type", mime));
@@ -402,7 +405,7 @@ void httpsend(int connfd, res_t *res) {
     header_t *header = NULL;
     sprintf(valuebuf, "%ld", res->length);
     append_header(res, new_header("Server", SERVER_NAME));
-    append_header(res, new_header("Date", get_now()));
+    append_header(res, new_header("Date", stringify_time(time(NULL))));
     append_header(res, new_header("Content-Length", valuebuf));
     sprintf(headbuf, "HTTP/1.1 %d %s%s", res->status, get_http_message(res->status), CRLF);
     header = res->header;
@@ -505,9 +508,8 @@ void res_init(res_t *res) {
     res->status = 0;
 }
 
-char *get_now() {
-    time_t now = time(NULL);
-    char *ret = ctime(&now);
+char *stringify_time(time_t t) {
+    char *ret = ctime(&t);
     trimright_line(ret);
     return ret;
 }
