@@ -16,6 +16,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <sys/wait.h>
 #include <arpa/inet.h>
 #ifndef PATH_MAX
 #define PATH_MAX 128
@@ -106,6 +107,7 @@ char *get_extension(const char *);
 char *get_mime(const char *);
 int parse_location(char *, location_t*);
 int check_method(char *);
+void child_handler(int);
 
 // Public dir
 char *public;
@@ -140,12 +142,20 @@ int main(int argc, char **argv, char **envptr) {
     server.sin_addr.s_addr = htonl(INADDR_ANY);
     if (bind(listenfd, (SA *)&server, sizeof(server)) < 0) fatal(2, "Failed bind socket");
     if (listen(listenfd, 1024) < 0) fatal(3, "Failed listen");
-    printf("Cerver start on port %hd\n", port);
+    signal(SIGCHLD, child_handler);
+    printf("Cerver start on port %hd...\n", port);
+    pid_t pid;
     while(1) {
         if ((connfd = accept(listenfd, (SA *)&client, (socklen_t *)&clientlen)) < 0) fatal(3, "Failed accept connection");
         report_client(&client);
-        web_handle(connfd);
-        printf("Close connection %d\n", connfd);
+        pid = fork();
+        if (pid < 0) fatal(4, "Failed fork child process");
+        if (pid == 0) {
+            web_handle(connfd);
+            printf("Close connection from child process %d\n", connfd);
+            if (close(connfd) < 0) fatal(4, "Failed close connection");
+            exit(0);
+        }
         if (close(connfd) < 0) fatal(4, "Failed close connection");
     }
 }
@@ -599,4 +609,14 @@ int check_method(char *method) {
         }
     }
     return FAILED;
+}
+
+
+void child_handler(int sig) {
+    pid_t pid;
+    int status;
+    while((pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0) {
+        //
+        printf("Child process %d reaped\n", pid);
+    }
 }
