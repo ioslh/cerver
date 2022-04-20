@@ -1,3 +1,3 @@
-# cerver
+# Cerver [C-Server]
 
-A simple HTTP server implemented by C. Just for learning purpose, not recommend for any environment.
+A simple HTTP server implemented in C. Just for learning purpose, not recommended for any environment.
