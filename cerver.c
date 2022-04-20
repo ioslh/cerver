@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <ctype.h>
+#include <time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -32,6 +33,11 @@
 #define MAX(x,y) ((x) > (y) ? (x) : (y))
 #define CRLF "\r\n"
 #define SERVER_NAME "Cerver"
+
+char *mime_table[][2] = {
+    {"html", "text/html"},
+    {"js", "application/javascript"},
+};
 
 struct Header {
     char *name;
@@ -81,6 +87,7 @@ int get_request(rio_t *, req_t *, res_t *);
 int handle_request(req_t *, res_t *);
 void free_request(req_t *);
 void print_headers(header_t *);
+void append_header(res_t *, header_t *);
 void free_response(res_t *);
 void free_headers(header_t *header);
 char *get_http_message(int);
@@ -90,6 +97,9 @@ void httpsend_error(int connfd, res_t *res);
 void httpsend(int connfd, res_t *res);
 void req_init(req_t *);
 void res_init(res_t *);
+char *get_now(void);
+char *get_extension(const char *);
+char *get_mime(const char *);
 
 // Public dir
 char *public;
@@ -285,7 +295,7 @@ int read_request_headers(rio_t *rp, req_t *req, res_t *res) {
 int trimright_line(char *line) {
     size_t len = strlen(line);
     if (len == 0) return 0;
-    // both CRLF and CR are valid as line terminator
+    // both CRLF and LF are valid as line terminator
     if (line[len - 1] == 10) {
         line[len - 1] = 0;
         if (len > 1 && line[len - 2] == 13) {
@@ -303,7 +313,7 @@ int handle_request(req_t *req, res_t *res) {
     strcpy(filename, public);
     strcat(filename, req->url);
     struct stat st;
-    char *pos;
+    char *pos, *mime;
     if (stat(filename, &st) == 0) {
         if (S_ISDIR(st.st_mode)) {
              pos = &filename[strlen(filename) - 1];
@@ -325,6 +335,10 @@ int handle_request(req_t *req, res_t *res) {
     strncpy(res->body, bodybuf, st.st_size);
     res->length = st.st_size;
     res->status = 200;
+    mime = get_mime(get_extension(filename));
+    if (mime) {
+        append_header(res, new_header("Content-Type", mime));
+    }
     close(fd);
     munmap(bodybuf, st.st_size);
     return 0;
@@ -368,6 +382,7 @@ void httpsend_error(int connfd, res_t *res) {
     strncpy(body, bodybuf, bodylen + 1);
     res->body = body;
     res->length = bodylen;
+    append_header(res, new_header("Content-Type", "text/html"));
     httpsend(connfd, res);
 }
 
@@ -387,7 +402,7 @@ void httpsend(int connfd, res_t *res) {
     header_t *header = NULL;
     sprintf(valuebuf, "%ld", res->length);
     append_header(res, new_header("Server", SERVER_NAME));
-    append_header(res, new_header("Date", "xxx"));
+    append_header(res, new_header("Date", get_now()));
     append_header(res, new_header("Content-Length", valuebuf));
     sprintf(headbuf, "HTTP/1.1 %d %s%s", res->status, get_http_message(res->status), CRLF);
     header = res->header;
@@ -488,4 +503,27 @@ void res_init(res_t *res) {
     res->header = NULL;
     res->last = NULL;
     res->status = 0;
+}
+
+char *get_now() {
+    time_t now = time(NULL);
+    char *ret = ctime(&now);
+    trimright_line(ret);
+    return ret;
+}
+
+char *get_extension(const char *name) {
+    char *ret = rindex(name, '.');
+    return ret ? ret + 1 : NULL;
+}
+
+char *get_mime(const char *ext) {
+    if (!ext) return NULL;
+    size_t len = sizeof(mime_table) / sizeof(mime_table[0]), i;
+    for(i = 0; i < len; i++) {
+        if (strncasecmp(mime_table[i][0], ext, strlen(ext)) == 0) {
+            return mime_table[i][1];
+        }
+    }
+    return NULL;
 }
