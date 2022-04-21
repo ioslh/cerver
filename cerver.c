@@ -277,14 +277,12 @@ int read_startline(rio_t *rp, req_t *req, res_t *res) {
         res->status = 400;
         return FAILED;
     }
-    if (strlen(url) == 0 || url[0] != '/') {
-        // Only support abs path, cannot be empty, MUST start with '/'
-        // https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html#sec5.1.2
-        res->status = 400;
-        return FAILED;
-    }
+
     req->location = (location_t *)malloc(sizeof(location_t));
-    parse_location(url, req->location);
+    if (parse_location(url, req->location) != OK) {
+        res->status = 400;
+        return FAILED; 
+    }
 
     if (check_method(req->method) != OK) {
         res->status = 405;
@@ -572,31 +570,48 @@ char *get_mime(const char *ext) {
 
 
 int parse_location(char *url, location_t* loc) {
-    char *queryptr, *hashptr;
-    size_t len = 0;
+    char *pathptr = NULL, *queryptr = NULL, *hashptr = NULL;
     loc->path = NULL;
     loc->hash = NULL;
     loc->query = NULL;
-    if ((queryptr = index(url, '?')) != NULL) {
+    size_t len = strlen(url);
+    if (len == 0) return FAILED;
+
+    if (url[0] == '/') {
+        pathptr = url;
+    } else {
+        // If request come from a proxy, host is also included  in startline URI part
+        // https://www.w3.org/Protocols/rfc2616/rfc2616-sec5.html#sec5.1.2
+        if (strncasecmp(url, "https://", 8) == 0) {
+            pathptr = index(url + 8, '/');
+        } else if (strncasecmp(url, "http://", 7) == 0) {
+            pathptr = index(url + 7, '/');
+        }
+    }
+    if (pathptr == NULL || (len = strlen(pathptr)) == 0) {
+        return FAILED;
+    }
+
+    if ((queryptr = index(pathptr, '?')) != NULL) {
         *queryptr = 0;
         queryptr++;
     }
-    if ((hashptr = index(url, '#')) != NULL) {
+    if ((hashptr = index(pathptr, '#')) != NULL) {
         *hashptr = 0;
         hashptr++;
     }
-    len = strlen(url) + 1;
-    loc->path = (char *)malloc(len);
-    strncpy(loc->path, url, len);
+
+    loc->path = (char *)malloc(len + 1);
+    strncpy(loc->path, pathptr, len + 1);
 
     if (queryptr && (len = strlen(queryptr)) > 0) {
-        loc->query = (char *)malloc(len);
-        strncpy(loc->query, queryptr, len);
+        loc->query = (char *)malloc(len + 1);
+        strncpy(loc->query, queryptr, len + 1);
     }
 
     if (hashptr && (len = strlen(hashptr)) > 0) {
-        loc->hash = (char *)malloc(len);
-        strncpy(loc->hash, hashptr, len);
+        loc->hash = (char *)malloc(len + 1);
+        strncpy(loc->hash, hashptr, len + 1);
     }
     return OK;
 }
