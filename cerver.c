@@ -151,6 +151,7 @@ int main(int argc, char **argv, char **envptr) {
         pid = fork();
         if (pid < 0) fatal(4, "Failed fork child process");
         if (pid == 0) {
+            close(listenfd);
             web_handle(connfd);
             printf("Close connection from child process %d\n", connfd);
             if (close(connfd) < 0) fatal(4, "Failed close connection");
