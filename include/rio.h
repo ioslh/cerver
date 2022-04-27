@@ -1,3 +1,9 @@
+/*********************************************************************
+ * Robust i/o
+ * originally come from textbook csapp and unp
+ * https://book.douban.com/subject/5333562/
+ * https://book.douban.com/subject/26434583/
+ ********************************************************************/
 #ifndef rio_h
 #define rio_h
 #include <string.h>

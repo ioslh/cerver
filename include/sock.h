@@ -3,6 +3,8 @@
 #include <strings.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
+#include "utils.h"
+
 #define LISTENQ 1024
 
 typedef struct sockaddr SA;

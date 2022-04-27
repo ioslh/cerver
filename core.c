@@ -1,8 +1,4 @@
 #include "core.h"
-#include "sock.h"
-#include "utils.h"
-#include "sbuf.h"
-#include "http.h"
 
 server_t svr;
 
@@ -14,7 +10,6 @@ void run_server(int port, char *public) {
   int clientlen = sizeof(client);
   svr.port = port;
   svr.public = public;
-  printf("will listen\n");
   sbuf_init(&sbuf, NTHREADS);
   listenfd = open_listenfd(port);
   for(i = 0; i < NTHREADS; i++) {

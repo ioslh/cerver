@@ -1,5 +1,4 @@
 #include "sbuf.h"
-#include "utils.h"
 
 void sbuf_init(sbuf_t *sp, int n) {
   sp->capacity = n;

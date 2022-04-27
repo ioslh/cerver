@@ -1,7 +1,4 @@
 #include "http.h"
-#include "utils.h"
-#include "rio.h"
-#include "core.h"
 
 char *mime_table[][2] = {
     {"html", "text/html"},

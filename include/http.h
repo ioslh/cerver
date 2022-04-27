@@ -3,14 +3,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
 #include <fcntl.h>
-#include <arpa/inet.h>
 #include <ctype.h>
 #include <time.h>
-#include "rio.h"
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <arpa/inet.h>
+#include "utils.h"
 #include "core.h"
+#include "rio.h"
+
 #define SERVER_NAME "Cerver"
 #define CRLF "\r\n"
 #define HDR_LEN_MAX 2048
@@ -20,6 +22,10 @@
 #define FAILED -1
 #define OK 0
 
+typedef struct {
+  int port;
+  char *public;
+} server_t;
 
 typedef struct Location {
     char *hash;

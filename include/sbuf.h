@@ -3,7 +3,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <semaphore.h>
-
+#include "utils.h"
 
 typedef struct {
     int *buf;
