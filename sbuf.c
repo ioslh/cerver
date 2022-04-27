@@ -1,35 +1,47 @@
 #include "sbuf.h"
+#include "utils.h"
 
-void sbuf_init(sbuf_t *buf, int n) {
-  buf->capacity = n;
-  buf->buf = (int *)calloc(n, sizeof(int));
-  if (!buf->buf) fatal(1, "Failed calloc buf");
-  buf->head = buf->tail = 0;
-  buf->conns = sem_open("s_conn_lock", O_CREAT, 0644, 0);
-  buf->mutex = sem_open("s_buf_lock", O_CREAT, 0644, 1);
-  buf->slots = sem_open("s_slots_lock", O_CREAT, 0644, n);
+void sbuf_init(sbuf_t *sp, int n) {
+  sp->capacity = n;
+  sp->buf = (int *)calloc(n, sizeof(int));
+  if (!sp->buf) fatal_exit(1, "Failed calloc buf");
+  sp->head = sp->tail = 0;
+  sp->items = sem_open("s_conn_lock", O_CREAT, 0644, 0);
+  sp->mutex = sem_open("s_buf_lock", O_CREAT, 0644, 1);
+  sp->slots = sem_open("s_slots_lock", O_CREAT, 0644, n);
 }
 
-void sbuf_insert(sbuf_t *buf, int connfd) {
-  sem_wait(buf->slots);
-  sem_wait(buf->mutex);
-  buf->buf[buf->tail] = connfd;
-  buf->tail = (buf->tail + 1) % buf->capacity;
-  sem_post(buf->conns);
-  sem_post(buf->mutex);
+void sbuf_insert(sbuf_t *sp, int connfd) {
+  sem_wait(sp->slots);
+  sem_wait(sp->mutex);
+  sp->buf[sp->tail] = connfd;
+  sp->tail = (sp->tail + 1) % sp->capacity;
+  // print_sbuf("insert", sp);
+  sem_post(sp->items);
+  sem_post(sp->mutex);
 }
 
-int sbuf_delete(sbuf_t *buf) {
+int sbuf_delete(sbuf_t *sp) {
   int connfd;
-  sem_wait(buf->conns);
-  sem_wait(buf->mutex);
-  buf->head = (buf->head + 1) % buf->capacity;
-  connfd = buf->buf[buf->head];
-  sem_post(buf->slots);
-  sem_post(buf->mutex);
+  sem_wait(sp->items);
+  sem_wait(sp->mutex);
+  connfd = sp->buf[sp->head];
+  sp->head = (sp->head + 1) % sp->capacity;
+  // print_sbuf("delete", sp);
+  sem_post(sp->slots);
+  sem_post(sp->mutex);
   return connfd;
 }
 
-void sbuf_destroy(sbuf_t *buf) {
-  free(buf->buf);
+void sbuf_destroy(sbuf_t *sp) {
+  free(sp->buf);
+}
+
+void print_sbuf(char *action, sbuf_t *sp) {
+  int i;
+  printf("%s sbuf[", action);
+  for(i = 0; i < sp->capacity; i++) {
+    printf(" %d ", sp->buf[i]);
+  }
+  printf("], head = %d, tail = %d\n", sp->head, sp->tail);
 }

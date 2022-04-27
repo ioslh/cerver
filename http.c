@@ -1,4 +1,7 @@
-#include "handle.h"
+#include "http.h"
+#include "utils.h"
+#include "rio.h"
+#include "core.h"
 
 char *mime_table[][2] = {
     {"html", "text/html"},
@@ -12,11 +15,10 @@ char *methods[] = {
     "HEAD",
 };
 
-
 int read_startline(rio_t *rp, req_t *req, res_t *res) {
-    char line[HDR_MAX];
-    char url[URI_MAX];
-    if (rio_readline(rp, line, HDR_MAX) < 0) {
+    char line[HDR_LEN_MAX];
+    char url[URI_LEN_MAX];
+    if (rio_readline(rp, line, HDR_LEN_MAX) < 0) {
         res->status = 400;
         return FAILED;
     }
@@ -40,15 +42,12 @@ int read_startline(rio_t *rp, req_t *req, res_t *res) {
     return OK;
 }
 
-
-
-
 int read_request_headers(rio_t *rp, req_t *req, res_t *res) {
-    char line[HDR_MAX];
+    char line[HDR_LEN_MAX];
     size_t n;
     char *nameptr, *valueptr, *colonptr;
     header_t *prev_header = NULL, *temp_header = NULL;
-    while((n = rio_readline(rp, line, HDR_MAX)) > 0) {
+    while((n = rio_readline(rp, line, HDR_LEN_MAX)) > 0) {
         n -= trimright_line(line);
         if (n == 0) break; // empty line, end of headers
         // if less than 3, we can surely know that's not a valid header
@@ -90,10 +89,10 @@ int trimright_line(char *line) {
     return 0;
 }
 
-int handle_request(req_t *req, res_t *res) {
+int handle_request(server_t *app, req_t *req, res_t *res) {
     // serve static file
-    char filename[URI_MAX];
-    strcpy(filename, public);
+    char filename[URI_LEN_MAX];
+    strcpy(filename, app->public);
     strcat(filename, req->location->path);
     struct stat st;
     char *pos, *mime;
@@ -132,7 +131,7 @@ int handle_request(req_t *req, res_t *res) {
     return OK;
 }
 
-void web_handle(int connfd) {
+void web_handle(server_t *app, int connfd) {
     rio_t rio;
     req_t req;
     res_t res;
@@ -141,7 +140,7 @@ void web_handle(int connfd) {
     res_init(&res);
     if (read_startline(&rio, &req, &res) == OK) {
         if (read_request_headers(&rio, &req, &res) == OK) {
-            if (handle_request(&req, &res) == OK) {
+            if (handle_request(app, &req, &res) == OK) {
                 httpsend(connfd, &res);
             } else {
                 httpsend_error(connfd, &res);
@@ -158,7 +157,7 @@ void web_handle(int connfd) {
 
 
 void httpsend_error(int connfd, res_t *res) {
-    char bodybuf[BUF_MAX];
+    char bodybuf[BODY_MAX];
     char *message = get_http_message(res->status);
     sprintf(bodybuf, "<html>");
     sprintf(bodybuf, "%s  <head><title>%d %s</title></head>", bodybuf, res->status, message);
@@ -185,7 +184,7 @@ void append_header(res_t *res, header_t *header) {
 
 void httpsend(int connfd, res_t *res) {
     char valuebuf[16];
-    char headbuf[BUF_MAX];
+    char headbuf[HDR_LEN_MAX];
     header_t *header = NULL;
     sprintf(valuebuf, "%ld", res->length);
     append_header(res, new_header("Server", SERVER_NAME));
@@ -204,17 +203,12 @@ void httpsend(int connfd, res_t *res) {
     rio_writen(connfd, res->body, res->length);
 }
 
-void report_client(struct sockaddr_in *client) {
-    char *ip = inet_ntoa(client->sin_addr);
-    printf("Connected from %s\n", ip);
-}
-
 header_t * new_header(const char *name, const char *value) {
     header_t *header = (header_t *)malloc(sizeof(header_t));
     size_t namelen = strlen(name), valuelen = strlen(value);
     char *nameptr = (char *)malloc(namelen + 1);
     char *valueptr = (char *)malloc(valuelen + 1);
-    if (!header || !nameptr || !valueptr) fatal(1, "Failed allocate memory for header");
+    if (!header || !nameptr || !valueptr) fatal_exit(1, "Failed allocate memory for header");
     strncpy(nameptr, name, namelen + 1);
     strncpy(valueptr, value, valuelen + 1);
     header->next = NULL;

@@ -1,12 +1,5 @@
 #include "rio.h"
 
-/*********************************************************************
- * Robust i/o
- * originally come from textbook csapp and unp
- * https://book.douban.com/subject/5333562/
- * https://book.douban.com/subject/26434583/
- ********************************************************************/
-
 void rio_init(rio_t *rp, int fd) {
     rp->fd = fd;
     rp->cursor = rp->buf;
@@ -34,7 +27,7 @@ ssize_t rio_read(rio_t *rp, char *buf, size_t n) {
             rp->cursor = rp->buf;
         }
     }
-    cnt = MIN(n, rp->unread);
+    cnt = n > rp->unread ? rp->unread : n;
     memcpy(buf, rp->cursor, cnt);
     rp->cursor += cnt;
     rp->unread -= cnt;

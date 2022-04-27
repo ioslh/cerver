@@ -1,12 +1,25 @@
-#ifndef handle_h
-#define handle_h
-
-#include "rio.h"
-#include "utils.h"
-#include <fcntl.h>
-#include <arpa/inet.h>
+#ifndef http_h
+#define http_h
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <arpa/inet.h>
+#include <ctype.h>
+#include <time.h>
+#include "rio.h"
+#include "core.h"
+#define SERVER_NAME "Cerver"
+#define CRLF "\r\n"
+#define HDR_LEN_MAX 2048
+#define URI_LEN_MAX 1024
+#define BODY_MAX 4096
+// According to Posix style convention, -1 failed, 0 ok
+#define FAILED -1
+#define OK 0
+
 
 typedef struct Location {
     char *hash;
@@ -38,13 +51,13 @@ struct Response {
 };
 typedef struct Response res_t;
 
-void web_handle(int);
+void web_handle(server_t *, int);
 void report_client(struct sockaddr_in *);
 int read_startline(rio_t *, req_t *, res_t *);
 int read_request_headers(rio_t *, req_t *, res_t *);
 int trimright_line(char *);
 int get_request(rio_t *, req_t *, res_t *);
-int handle_request(req_t *, res_t *);
+int handle_request(server_t *, req_t *, res_t *);
 void free_request(req_t *);
 void print_headers(header_t *);
 void append_header(res_t *, header_t *);
@@ -64,4 +77,4 @@ char *get_mime(const char *);
 int parse_location(char *, location_t*);
 int check_method(char *);
 
-#endif /* handle_h */
+#endif /* http_h */
