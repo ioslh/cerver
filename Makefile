@@ -1,2 +1,2 @@
 cerver:
-	gcc cerver.c -o cerver
+	gcc utils.c sbuf.c cerver.c -o cerver

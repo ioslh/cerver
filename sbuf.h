@@ -1,0 +1,22 @@
+#ifndef sbuf_h
+#define sbuf_h
+#include <fcntl.h>
+#include <stdlib.h>
+#include <semaphore.h>
+#include "utils.h"
+
+typedef struct {
+    int *buf;
+    int capacity;
+    int head;
+    int tail;
+    sem_t *conns;
+    sem_t *mutex;
+    sem_t *slots;
+} sbuf_t;
+
+void sbuf_init(sbuf_t *, int);
+void sbuf_insert(sbuf_t *, int);
+int sbuf_delete(sbuf_t *);
+void sbuf_destroy(sbuf_t *);
+#endif /* sbuf_h */
