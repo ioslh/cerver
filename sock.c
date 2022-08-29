@@ -1,4 +1,4 @@
-#include "sock.h"
+#include "./inc/sock.h"
 
 int open_listenfd(int port) {
   int listenfd, optval = 1;

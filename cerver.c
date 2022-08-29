@@ -1,6 +1,6 @@
-#include "core.h"
+#include "./inc/core.h"
 
-int main(int argc, char **argv, char **envptr) {
+int main(int argc, char **argv) {
   short port = 0;
   if (argc < 2 || sscanf(argv[1], "%hd", &port) != 1) {
       // use default 8080 port

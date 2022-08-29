@@ -24,7 +24,7 @@
 
 typedef struct {
   int port;
-  char *public;
+  char *www;
 } server_t;
 
 typedef struct Location {
@@ -60,7 +60,7 @@ typedef struct Response res_t;
 void web_handle(server_t *, int);
 void report_client(struct sockaddr_in *);
 int read_startline(rio_t *, req_t *, res_t *);
-int read_request_headers(rio_t *, req_t *, res_t *);
+int read_request_headers(rio_t *, req_t *);
 int trimright_line(char *);
 int get_request(rio_t *, req_t *, res_t *);
 int handle_request(server_t *, req_t *, res_t *);

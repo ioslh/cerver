@@ -1,4 +1,4 @@
-#include "sbuf.h"
+#include "./inc/sbuf.h"
 
 void sbuf_init(sbuf_t *sp, int n) {
   sp->capacity = n;

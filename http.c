@@ -1,4 +1,4 @@
-#include "http.h"
+#include "./inc/http.h"
 
 char *mime_table[][2] = {
     {"html", "text/html"},
@@ -39,7 +39,7 @@ int read_startline(rio_t *rp, req_t *req, res_t *res) {
     return OK;
 }
 
-int read_request_headers(rio_t *rp, req_t *req, res_t *res) {
+int read_request_headers(rio_t *rp, req_t *req) {
     char line[HDR_LEN_MAX];
     size_t n;
     char *nameptr, *valueptr, *colonptr;
@@ -89,7 +89,7 @@ int trimright_line(char *line) {
 int handle_request(server_t *app, req_t *req, res_t *res) {
     // serve static file
     char filename[URI_LEN_MAX];
-    strcpy(filename, app->public);
+    strcpy(filename, app->www);
     strcat(filename, req->location->path);
     struct stat st;
     char *pos, *mime;
@@ -136,7 +136,7 @@ void web_handle(server_t *app, int connfd) {
     req_init(&req);
     res_init(&res);
     if (read_startline(&rio, &req, &res) == OK) {
-        if (read_request_headers(&rio, &req, &res) == OK) {
+        if (read_request_headers(&rio, &req) == OK) {
             if (handle_request(app, &req, &res) == OK) {
                 httpsend(connfd, &res);
             } else {

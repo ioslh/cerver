@@ -1,3 +1,5 @@
 a.out
+*.o
+cerver
 .vscode/
 .DS_Store

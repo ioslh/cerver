@@ -4,7 +4,7 @@
  * https://book.douban.com/subject/5333562/
  * https://book.douban.com/subject/26434583/
  ********************************************************************/
-#include "rio.h"
+#include "./inc/rio.h"
 
 void rio_init(rio_t *rp, int fd) {
     rp->fd = fd;
@@ -33,7 +33,7 @@ ssize_t rio_read(rio_t *rp, char *buf, size_t n) {
             rp->cursor = rp->buf;
         }
     }
-    cnt = n > rp->unread ? rp->unread : n;
+    cnt = (int)n > rp->unread ? rp->unread : n;
     memcpy(buf, rp->cursor, cnt);
     rp->cursor += cnt;
     rp->unread -= cnt;

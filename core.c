@@ -1,4 +1,4 @@
-#include "core.h"
+#include "./inc/core.h"
 
 server_t svr;
 
@@ -9,7 +9,7 @@ void run_server(int port, char *public) {
   sbuf_t sbuf;
   int clientlen = sizeof(client);
   svr.port = port;
-  svr.public = public;
+  svr.www = public;
   sbuf_init(&sbuf, NTHREADS);
   listenfd = open_listenfd(port);
   for(i = 0; i < NTHREADS; i++) {
